@@ -1,11 +1,12 @@
 from rest_framework import serializers
 from decimal import Decimal
+from decimal import ROUND_HALF_UP
 
 # Address Schema
 class AddressSerializer(serializers.Serializer):
     street = serializers.CharField(max_length=255)
     city = serializers.CharField(max_length=200)
-    postal_code = serializers.CharField(max_length=10)
+    postalCode = serializers.CharField(max_length=10)
     country = serializers.CharField(max_length=100)
 
 # Customer Schema
@@ -42,22 +43,52 @@ class SummarySerializer(serializers.Serializer):
 class DeskOrderSerializer(serializers.Serializer):
     customer = CustomerSerializer()
     product = ProductSerializer()
-    discounts = DiscountSerializer(required=False)
+    discount = DiscountSerializer(required=False)
     summary = SummarySerializer()
 
     def validate(self, attrs):
         catalog_price = attrs['product']['catalogPricePLN']
         final_amount = attrs['summary']['finalAmountPLN']
 
-        discount_data = attrs.get('discounts', {})
+        discount_data = attrs.get('discount', {})
         discount_amount = discount_data.get('discountAmountPLN', Decimal('0.00'))
+        discount_percentage = discount_data.get('discountPercentage', 0)
+        is_code_applied = discount_data.get('isCodeApplied', False)
+        expected_discount = (
+            catalog_price * Decimal(discount_percentage) / Decimal('100')
+        ).quantize(Decimal('0.01'), rounding=ROUND_HALF_UP)
+
+        errors = {}
+        if discount_amount != expected_discount:
+            errors['discount'] = (
+                f"Invalid discount amount. Expected {expected_discount} PLN, "
+                f"got {discount_amount} PLN."
+            )
+        if not is_code_applied and (discount_amount != Decimal('0.00') or discount_percentage != 0):
+            errors['discount'] = 'Discount values require isCodeApplied=true.'
+        if discount_amount > catalog_price:
+            errors['discount'] = 'Discount cannot exceed the catalog price.'
 
         expected_amount = catalog_price - discount_amount
 
         if final_amount != expected_amount:
-            raise serializers.ValidationError({
-                "summary": f"Invalid final amount. Expected {expected_amount} PLN, got {final_amount} PLN."
-            })
+            errors['summary'] = (
+                f"Invalid final amount. Expected {expected_amount} PLN, "
+                f"got {final_amount} PLN."
+            )
+        if attrs['summary'].get('currency', 'PLN') != 'PLN':
+            errors['summary'] = 'Only PLN currency is supported.'
+        if errors:
+            raise serializers.ValidationError(errors)
 
         return attrs
 
+
+class OrderResponseSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    product_id = serializers.CharField()
+    catalog_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    discount_code = serializers.CharField(allow_null=True)
+    final_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    status = serializers.CharField()
+    created_at = serializers.DateTimeField()
