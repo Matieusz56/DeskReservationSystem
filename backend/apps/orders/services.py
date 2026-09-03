@@ -1,6 +1,7 @@
 from django.db import transaction
 
 from .models import Address, Customer, Order
+from apps.desks.models import Desk
 
 
 @transaction.atomic
@@ -10,6 +11,10 @@ def create_order(validated_data):
     product_data = validated_data['product']
     discount_data = validated_data.get('discount', {})
     summary_data = validated_data['summary']
+
+    desk = Desk.objects.get(
+        external_id=product_data['id'],
+    )
 
     address = Address.objects.create(
         street=address_data['street'],
@@ -26,8 +31,8 @@ def create_order(validated_data):
     )
     return Order.objects.create(
         customer=customer,
-        product_id=product_data['id'],
-        catalog_price=product_data['catalogPricePLN'],
+        desk=desk,
+        catalog_price=desk.catalog_price,
         discount_code=discount_data.get('discountCode'),
         final_price=summary_data['finalAmountPLN'],
     )

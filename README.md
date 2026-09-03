@@ -26,6 +26,12 @@ This project simulates a real-world e-commerce backend designed to handle worksp
 
 ---
 
+## Database Schema 
+
+![Database Schema](images/schema.svg)
+
+---
+
 ## Example Request Payload
 
 ```json
