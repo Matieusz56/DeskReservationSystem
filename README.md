@@ -32,10 +32,11 @@ This project simulates a real-world e-commerce backend designed to handle worksp
 
 ---
 
-## Example Request Payload
+## Example Request Payload (For current version)
 
 ```json
 {
+  "{
   "customer": {
     "firstName": "Jan",
     "lastName": "Kowalski",
@@ -49,11 +50,7 @@ This project simulates a real-world e-commerce backend designed to handle worksp
     }
   },
   "product": {
-    "id": "desk_9821",
-    "brand": "IKEA",
-    "model": "BEKANT",
-    "name": "Biurko z regulacją wysokości 160x80",
-    "catalogPricePLN": 1299.00
+    "id": "desk_9821"
   },
   "discount": {
     "isCodeApplied": true,
@@ -64,5 +61,7 @@ This project simulates a real-world e-commerce backend designed to handle worksp
   "summary": {
     "finalAmountPLN": 1169.10,
     "currency": "PLN"
+  }
+}
   }
 }
