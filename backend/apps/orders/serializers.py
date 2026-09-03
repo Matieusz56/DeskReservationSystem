@@ -2,6 +2,8 @@ from rest_framework import serializers
 from decimal import Decimal
 from decimal import ROUND_HALF_UP
 
+from apps.desks.models import Desk
+
 # Address Schema
 class AddressSerializer(serializers.Serializer):
     street = serializers.CharField(max_length=255)
@@ -20,17 +22,13 @@ class CustomerSerializer(serializers.Serializer):
 # Product Schema
 class ProductSerializer(serializers.Serializer):
     id = serializers.CharField(max_length=50)
-    brand = serializers.CharField(max_length=100)
-    model = serializers.CharField(max_length=100)
-    name = serializers.CharField(max_length=255)
-    catalogPricePLN = serializers.DecimalField(max_digits=10, decimal_places=2)
 
 # Discount Code Schema
 class DiscountSerializer(serializers.Serializer):
     isCodeApplied = serializers.BooleanField(default=False)
     discountCode = serializers.CharField(max_length=50,allow_null=True,required=False)
     discountPercentage = serializers.IntegerField(default=0,min_value=0,max_value=100)
-    discountAmountPLN = serializers.DecimalField(max_digits=10,decimal_places=2, default=0.00)
+    discountAmountPLN = serializers.DecimalField(max_digits=10,decimal_places=2, default=Decimal('0.00'))
 
 # Summary Schema
 class SummarySerializer(serializers.Serializer):
@@ -47,9 +45,22 @@ class DeskOrderSerializer(serializers.Serializer):
     summary = SummarySerializer()
 
     def validate(self, attrs):
-        catalog_price = attrs['product']['catalogPricePLN']
+        product_id = attrs['product']['id']
         final_amount = attrs['summary']['finalAmountPLN']
 
+        try:
+            desk = Desk.objects.get(external_id=product_id)
+        except Desk.DoesNotExist:
+            raise serializers.ValidationError({
+                'product': f"Desk '{product_id}' does not exist.",
+            })
+
+        if desk.stock_quantity < 1:
+            raise serializers.ValidationError({
+                'product': f"Desk '{product_id}' is out of stock.",
+            })
+
+        catalog_price = desk.catalog_price
         discount_data = attrs.get('discount', {})
         discount_amount = discount_data.get('discountAmountPLN', Decimal('0.00'))
         discount_percentage = discount_data.get('discountPercentage', 0)
@@ -84,10 +95,19 @@ class DeskOrderSerializer(serializers.Serializer):
         return attrs
 
 
+class DeskResponseSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    external_id = serializers.CharField()
+    brand = serializers.CharField()
+    model = serializers.CharField()
+    name = serializers.CharField()
+    catalog_price = serializers.DecimalField(max_digits=10, decimal_places=2)   # actual price from catalog
+    stock_quantity = serializers.IntegerField()
+
 class OrderResponseSerializer(serializers.Serializer):
     id = serializers.IntegerField()
-    product_id = serializers.CharField()
-    catalog_price = serializers.DecimalField(max_digits=10, decimal_places=2)
+    desk = DeskResponseSerializer()
+    catalog_price = serializers.DecimalField(max_digits=10, decimal_places=2)   # price saved in moment of buy
     discount_code = serializers.CharField(allow_null=True)
     final_price = serializers.DecimalField(max_digits=10, decimal_places=2)
     status = serializers.CharField()
